@@ -10,9 +10,10 @@ import { isElectron } from "../../env";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { useThreadActions } from "../../hooks/useThreadActions";
 import { cn } from "../../lib/utils";
-import { useProjects, useVisibleThreadShells } from "../../state/entities";
+import { useVisibleThreadShells } from "../../state/entities";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
+import { useBenProjects } from "./useBenProjects";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { SidebarInset } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
@@ -46,7 +47,7 @@ function threadKey(thread: Pick<EnvironmentThreadShell, "environmentId" | "id">)
 
 export function BoardPage(props: { readonly projectKey: string | undefined }) {
   const navigate = useNavigate();
-  const projects = useProjects();
+  const projects = useBenProjects();
   const threads = useVisibleThreadShells();
   const nowIso = useNowMinute();
   const { settleThread, unsettleThread } = useThreadActions();
@@ -109,26 +110,24 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
           >
             All projects
           </button>
-          {projects
-            .filter((project) => project.archivedAt == null && !project.isScratch)
-            .map((project) => {
-              const key = `${project.environmentId}:${project.id}`;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={cn(
-                    "rounded-full px-2.5 py-1",
-                    props.projectKey === key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground",
-                  )}
-                  onClick={() => void navigate({ to: "/board", search: { project: key } })}
-                >
-                  {project.title}
-                </button>
-              );
-            })}
+          {projects.map((project) => {
+            const key = `${project.environmentId}:${project.id}`;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={cn(
+                  "rounded-full px-2.5 py-1",
+                  props.projectKey === key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground",
+                )}
+                onClick={() => void navigate({ to: "/board", search: { project: key } })}
+              >
+                {project.title}
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-5 gap-3 overflow-x-auto px-4 pb-4">

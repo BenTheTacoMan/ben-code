@@ -20,7 +20,7 @@ import { isElectron } from "../../env";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { cn } from "../../lib/utils";
-import { useProjects, useVisibleThreadShells } from "../../state/entities";
+import { useVisibleThreadShells } from "../../state/entities";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { SidebarChromeFooter, SidebarChromeHeader } from "../sidebar/SidebarChrome";
@@ -33,6 +33,7 @@ import {
   SPECIAL_THREADS,
   type SpecialThreadRole,
 } from "./specialThreads";
+import { useBenProjects } from "./useBenProjects";
 import { useOpenSpecialThread } from "./useOpenSpecialThread";
 
 const STATUS_DOT: Record<BoardColumnId, string> = {
@@ -124,9 +125,7 @@ function SpecialRow(props: {
 }
 
 export default function BenSidebar(_props: { routeReveal?: unknown }) {
-  const projects = useProjects().filter(
-    (project) => project.archivedAt == null && !project.isScratch,
-  );
+  const projects = useBenProjects();
   const threads = useVisibleThreadShells();
   const location = useLocation();
   const router = useRouter();
