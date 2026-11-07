@@ -203,7 +203,7 @@ function claudeAuthStatus(
 }
 
 // Bedrock initialization includes backend startup and awsAuthRefresh, taking longer than first-party auth.
-const CAPABILITIES_PROBE_TIMEOUT_MS = 25_000;
+const CAPABILITIES_PROBE_TIMEOUT_MS = 90_000; // Ben Code: hub hooks make the probe slow
 // Native CLI startup on Windows can exceed the shared probe deadline.
 const CLAUDE_VERSION_CHECK_TIMEOUT_MS = 20_000;
 

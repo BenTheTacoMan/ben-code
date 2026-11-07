@@ -6,6 +6,7 @@ import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
 import {
+  CheckCheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   Columns3Icon,
@@ -13,14 +14,17 @@ import {
   ListIcon,
   PackageCheckIcon,
   SquarePenIcon,
+  XIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { isElectron } from "../../env";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { cn } from "../../lib/utils";
 import { useVisibleThreadShells } from "../../state/entities";
+import { projectEnvironment } from "../../state/projects";
+import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { SidebarChromeFooter, SidebarChromeHeader } from "../sidebar/SidebarChrome";
@@ -132,7 +136,15 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
   const onBoard = location.pathname === "/board";
   const handleNewThread = useNewThreadHandler();
   const [selectedKey, setSelectedKey] = useLocalStorage("ben:selected-project", "", Schema.String);
-  const [showFinished, setShowFinished] = useState(false);
+  const onFinished = location.pathname === "/finished";
+  const updateProject = useOrchestrationCommand(projectEnvironment.update, {
+    label: "project archive",
+  });
+  const archiveProject = (project: EnvironmentProject) =>
+    updateProject({
+      environmentId: project.environmentId,
+      input: { projectId: project.id, archived: true },
+    });
 
   const selected = projects.find((project) => projectKeyOf(project) === selectedKey) ?? projects[0];
   const others = projects.filter((project) => project !== selected);
@@ -141,6 +153,7 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
     BOARD_COLUMNS.map((column) => [column.id, []]),
   );
   const countsByProject = new Map<string, { needs: number; working: number }>();
+  let finishedCount = 0;
   for (const thread of threads) {
     const column = classifyBoardThread(thread);
     if (column === null) continue;
@@ -149,14 +162,15 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
     if (column === "needs-you") counts.needs += 1;
     if (column === "working") counts.working += 1;
     countsByProject.set(key, counts);
-    if (selected && key === projectKeyOf(selected) && !isSpecialThread(thread)) {
-      sections.get(column)!.push(thread);
+    if (isSpecialThread(thread) || !projects.some((project) => projectKeyOf(project) === key)) {
+      continue;
     }
+    if (column === "finished" || column === "pushed") finishedCount += 1;
+    else if (selected && key === projectKeyOf(selected)) sections.get(column)!.push(thread);
   }
   for (const list of sections.values()) {
     list.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
   }
-  const finished = [...(sections.get("finished") ?? []), ...(sections.get("pushed") ?? [])];
 
   return (
     <TooltipProvider>
@@ -233,34 +247,6 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
                   </div>
                 );
               })}
-              {finished.length > 0 ? (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowFinished((value) => !value)}
-                    className="flex w-full items-center gap-1 px-3 pt-2 pb-1 text-2xs font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
-                  >
-                    {showFinished ? (
-                      <ChevronDownIcon className="size-3" />
-                    ) : (
-                      <ChevronRightIcon className="size-3" />
-                    )}
-                    Finished <span className="opacity-60">{finished.length}</span>
-                  </button>
-                  {showFinished
-                    ? finished
-                        .slice(0, MAX_ROWS_PER_SECTION)
-                        .map((thread) => (
-                          <ThreadRow
-                            key={thread.id}
-                            thread={thread}
-                            column={classifyBoardThread(thread) ?? "finished"}
-                            active={location.pathname.includes(thread.id)}
-                          />
-                        ))
-                    : null}
-                </div>
-              ) : null}
             </div>
           ) : null}
 
@@ -273,7 +259,7 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
                   type="button"
                   data-ben-project={projectKeyOf(project)}
                   onClick={() => setSelectedKey(projectKeyOf(project))}
-                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  className="group flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                 >
                   <ChevronRightIcon className="size-3.5" />
                   <ProjectFavicon project={project} className="size-4" />
@@ -285,9 +271,33 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
                   ) : counts && counts.working > 0 ? (
                     <span className="ml-auto size-1.5 animate-pulse rounded-full bg-info" />
                   ) : null}
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    aria-label={`Remove ${project.title} from Ben Code`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void archiveProject(project);
+                    }}
+                    className="ml-auto hidden rounded p-0.5 hover:bg-accent group-hover:block"
+                  >
+                    <XIcon className="size-3" />
+                  </span>
                 </button>
               );
             })}
+            <Link
+              to="/finished"
+              data-ben-finished-link
+              className={cn(
+                "mt-1 flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                onFinished && "bg-accent text-accent-foreground",
+              )}
+            >
+              <CheckCheckIcon className="size-3.5" />
+              Finished
+              <span className="ml-auto text-2xs opacity-60">{finishedCount}</span>
+            </Link>
           </div>
         </div>
       </SidebarContent>

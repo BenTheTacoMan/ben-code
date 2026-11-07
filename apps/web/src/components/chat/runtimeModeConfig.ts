@@ -32,7 +32,10 @@ export const runtimeModeConfig: Record<
   },
 };
 
-export const runtimeModeOptions = Object.keys(runtimeModeConfig) as RuntimeMode[];
+// Ben Code: Auto is hidden; Full access is the default everywhere.
+export const runtimeModeOptions: RuntimeMode[] = (
+  Object.keys(runtimeModeConfig) as RuntimeMode[]
+).filter((mode) => mode !== "auto");
 
 /** The modes a provider supports (all when it reports none) and the mode a thread really runs in. */
 export function resolveCompatibleRuntimeMode(
@@ -43,7 +46,8 @@ export function resolveCompatibleRuntimeMode(
     supportedRuntimeModes && supportedRuntimeModes.length > 0
       ? runtimeModeOptions.filter((mode) => supportedRuntimeModes.includes(mode))
       : runtimeModeOptions;
-  return { modes, mode: modes.includes(runtimeMode) ? runtimeMode : (modes[0] ?? runtimeMode) };
+  const fallback = modes.includes("full-access") ? "full-access" : (modes[0] ?? runtimeMode);
+  return { modes, mode: modes.includes(runtimeMode) ? runtimeMode : fallback };
 }
 
 export function resolveRuntimeModeOptions(
