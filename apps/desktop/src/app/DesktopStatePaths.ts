@@ -15,8 +15,9 @@ export function resolveDesktopBaseDir(input: {
   readonly joinPath: JoinPath;
   readonly t3Home: Option.Option<string>;
 }): string {
-  return Option.getOrElse(normalizeConfiguredBaseDir(input.t3Home), () =>
-    input.joinPath(input.homeDirectory, ".t3"),
+  return Option.getOrElse(
+    normalizeConfiguredBaseDir(input.t3Home),
+    () => input.joinPath(input.homeDirectory, ".t3-ben"), // Ben Code keeps its own data next to the stock app's.
   );
 }
 
