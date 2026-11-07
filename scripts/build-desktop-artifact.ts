@@ -2807,26 +2807,17 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     ],
   };
   const updateChannel = resolveDesktopUpdateChannel(version);
-  // Missing publish config infers a GitHub feed from tokens; staging has no repository, so manifest generation would crash.
-  buildConfig.publish = null;
-  // Ben Code never reads the official update feed; ben/update_app.sh rebuilds from upstream instead.
-  if (false as boolean) {
-    const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
-    if (publishConfig) {
-      buildConfig.publish = [publishConfig];
-    } else if (mockUpdates) {
-      buildConfig.publish = [
-        {
-          provider: "generic",
-          url: resolveMockUpdateServerUrl(mockUpdateServerPort),
-        },
-      ];
-    }
-  }
+  // Ben Code updates from its own local feed (ben/publish_build.sh), never the official one.
+  buildConfig.publish = [
+    { provider: "generic", url: process.env.BEN_CODE_UPDATE_URL ?? "http://127.0.0.1:47831" },
+  ];
 
   if (platform === "mac") {
     const path = yield* Path.Path;
     const repoRoot = yield* RepoRoot;
+    if (!signed && process.env.BEN_CODE_SIGN_IDENTITY) {
+      buildConfig.afterPack = path.join(repoRoot, "ben/after_pack_sign.cjs");
+    }
     buildConfig.mac = {
       target: target === "dmg" ? [target, "zip"] : [target],
       icon: "icon.icns",
@@ -2865,6 +2856,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         },
       ],
       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
+      // Ben Code signs with a stable local certificate in ben/after_pack_sign.cjs so Squirrel.Mac
+      // accepts each update. electron-builder only uses trusted identities, so it must not sign.
+      ...(!signed && process.env.BEN_CODE_SIGN_IDENTITY ? { identity: null } : {}),
       ...(macPasskeySigning
         ? {
             entitlements: macPasskeySigning.entitlementsPath,

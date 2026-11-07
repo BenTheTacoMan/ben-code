@@ -32,10 +32,14 @@ quit the nightly app first. The schema level is the same as the nightly build to
 
 ## Packaged app
 
-`ben/update_app.sh` syncs upstream, builds `/Applications/Ben Code.app` and installs it (quits and reopens the app if open).
-`--no-sync` builds the current branch only. The app has its own id, name and data (`~/.t3-ben`, `~/Library/Application Support/ben-code`),
-so it runs next to the stock app. Its auto-updater is off (no feed); updating means running the script.
-Rust is installed via rustup for the build (`~/.rustup`).
+`/Applications/Ben Code.app` updates itself like a normal Electron app (Settings shows "Update available", then Download and Restart).
+Its feed is `http://127.0.0.1:47831`, served by launchd job `com.ben.code-feed` from `~/.ben-code-build/feed`.
+Launchd job `com.ben.code-publish` runs `ben/publish_build.sh` at 04:00: it syncs upstream, builds, signs with the
+local certificate "Ben Code Local" (own keychain `~/Library/Keychains/ben-code.keychain-db`) and publishes to the feed.
+`ben/publish_build.sh` publishes on demand; `ben/update_app.sh` also installs over `/Applications` for a first install.
+The app has its own id, name and data (`~/.t3-ben`, `~/Library/Application Support/ben-code`) and runs next to the stock app.
+The same certificate on every build is what lets macOS accept each update. Rust comes from rustup (`~/.rustup`).
+Logs: `~/.ben-code-build/publish-nightly.log`, `feed.log`.
 
 ## Updating
 
