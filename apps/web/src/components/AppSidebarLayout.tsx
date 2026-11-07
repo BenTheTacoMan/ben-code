@@ -40,6 +40,8 @@ import {
 import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import ThreadSidebar from "./Sidebar";
+import BenSidebar from "./ben/BenSidebar";
+import { useBenSidebarEnabled } from "./ben/benSidebarSetting";
 import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
 import { isAppModalPage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
@@ -403,6 +405,7 @@ function SidebarControl() {
 
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const sidebarArea = workspaceAreaProps("sidebar", 0, "Threads");
+  const benSidebarEnabled = useBenSidebarEnabled();
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
     observedKey: null,
     pendingKey: null,
@@ -469,7 +472,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           }}
           style={windowControlsInsetStyle}
         >
-          <ThreadSidebar routeReveal={sidebarRouteReveal} />
+          {benSidebarEnabled ? <BenSidebar /> : <ThreadSidebar routeReveal={sidebarRouteReveal} />}
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}

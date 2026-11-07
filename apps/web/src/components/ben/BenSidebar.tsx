@@ -1,0 +1,286 @@
+// Ben Code sidebar: projects as an accordion. The open project shows its Planner, its Merge manager
+// and its threads grouped by state. Every other project is a single row pushed to the bottom.
+import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
+import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import * as Schema from "effect/Schema";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  Columns3Icon,
+  CompassIcon,
+  PackageCheckIcon,
+  SquarePenIcon,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
+
+import { isElectron } from "../../env";
+import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
+import { cn } from "../../lib/utils";
+import { useProjects, useVisibleThreadShells } from "../../state/entities";
+import { buildThreadRouteParams } from "../../threadRoutes";
+import { ProjectFavicon } from "../ProjectFavicon";
+import { SidebarChromeFooter, SidebarChromeHeader } from "../sidebar/SidebarChrome";
+import { SidebarContent } from "../ui/sidebar";
+import { TooltipProvider } from "../ui/tooltip";
+import { BOARD_COLUMNS, classifyBoardThread, type BoardColumnId } from "./boardColumns";
+import {
+  findSpecialThread,
+  isSpecialThread,
+  SPECIAL_THREADS,
+  type SpecialThreadRole,
+} from "./specialThreads";
+import { useOpenSpecialThread } from "./useOpenSpecialThread";
+
+const STATUS_DOT: Record<BoardColumnId, string> = {
+  "needs-you": "bg-warning",
+  working: "bg-info animate-pulse",
+  idle: "bg-muted-foreground",
+  finished: "bg-success/60",
+  pushed: "bg-guest/70",
+};
+
+const SECTION_LABEL: Record<BoardColumnId, string> = Object.fromEntries(
+  BOARD_COLUMNS.map((column) => [column.id, column.label]),
+) as Record<BoardColumnId, string>;
+
+const MAX_ROWS_PER_SECTION = 12;
+
+function projectKeyOf(project: Pick<EnvironmentProject, "environmentId" | "id">): string {
+  return `${project.environmentId}:${project.id}`;
+}
+
+function SectionLabel(props: { children: ReactNode; count?: number }) {
+  return (
+    <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
+      {props.children}
+      {props.count !== undefined ? <span className="opacity-60">{props.count}</span> : null}
+    </div>
+  );
+}
+
+function ThreadRow(props: {
+  readonly thread: EnvironmentThreadShell;
+  readonly column: BoardColumnId;
+  readonly active: boolean;
+}) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      data-ben-thread={props.thread.id}
+      onClick={() =>
+        void navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(
+            scopeThreadRef(props.thread.environmentId, props.thread.id),
+          ),
+        })
+      }
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm hover:bg-accent/60",
+        props.active && "bg-accent text-accent-foreground",
+      )}
+    >
+      <span className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[props.column])} />
+      <span className="truncate">{props.thread.title}</span>
+    </button>
+  );
+}
+
+function SpecialRow(props: {
+  readonly role: SpecialThreadRole;
+  readonly project: EnvironmentProject;
+  readonly threads: ReadonlyArray<EnvironmentThreadShell>;
+  readonly activePath: string;
+}) {
+  const open = useOpenSpecialThread();
+  const definition = SPECIAL_THREADS[props.role];
+  const existing = findSpecialThread(props.threads, projectKeyOf(props.project), props.role);
+  const column = existing ? classifyBoardThread(existing) : null;
+  const Icon = props.role === "planner" ? CompassIcon : PackageCheckIcon;
+  return (
+    <button
+      type="button"
+      data-ben-special={props.role}
+      onClick={() => void open(props.project, props.role)}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm hover:bg-accent/60",
+        existing && props.activePath.includes(existing.id) && "bg-accent text-accent-foreground",
+      )}
+    >
+      <Icon className="size-3.5 shrink-0 text-primary" />
+      <span className="truncate font-medium">{definition.title}</span>
+      {column ? (
+        <span className={cn("ml-auto size-1.5 shrink-0 rounded-full", STATUS_DOT[column])} />
+      ) : (
+        <span className="ml-auto text-2xs text-muted-foreground">start</span>
+      )}
+    </button>
+  );
+}
+
+export default function BenSidebar(_props: { routeReveal?: unknown }) {
+  const projects = useProjects().filter(
+    (project) => project.archivedAt == null && !project.isScratch,
+  );
+  const threads = useVisibleThreadShells();
+  const location = useLocation();
+  const handleNewThread = useNewThreadHandler();
+  const [selectedKey, setSelectedKey] = useLocalStorage("ben:selected-project", "", Schema.String);
+  const [showFinished, setShowFinished] = useState(false);
+
+  const selected = projects.find((project) => projectKeyOf(project) === selectedKey) ?? projects[0];
+  const others = projects.filter((project) => project !== selected);
+
+  const sections = new Map<BoardColumnId, EnvironmentThreadShell[]>(
+    BOARD_COLUMNS.map((column) => [column.id, []]),
+  );
+  const countsByProject = new Map<string, { needs: number; working: number }>();
+  for (const thread of threads) {
+    const column = classifyBoardThread(thread);
+    if (column === null) continue;
+    const key = `${thread.environmentId}:${thread.projectId}`;
+    const counts = countsByProject.get(key) ?? { needs: 0, working: 0 };
+    if (column === "needs-you") counts.needs += 1;
+    if (column === "working") counts.working += 1;
+    countsByProject.set(key, counts);
+    if (selected && key === projectKeyOf(selected) && !isSpecialThread(thread)) {
+      sections.get(column)!.push(thread);
+    }
+  }
+  for (const list of sections.values()) {
+    list.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+  }
+  const finished = [...(sections.get("finished") ?? []), ...(sections.get("pushed") ?? [])];
+
+  return (
+    <TooltipProvider>
+      <SidebarChromeHeader isElectron={isElectron} />
+      <SidebarContent className="min-h-full">
+        <div className="flex min-h-full flex-col gap-1 px-2 pb-2">
+          <div className="flex items-center gap-1 px-1 pt-1">
+            <Link
+              to="/board"
+              search={selected ? { project: projectKeyOf(selected) } : {}}
+              data-ben-board-link
+              className={cn(
+                "flex flex-1 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent/60",
+                location.pathname === "/board" && "bg-accent",
+              )}
+            >
+              <Columns3Icon className="size-4" />
+              Board
+            </Link>
+          </div>
+
+          {selected ? (
+            <div data-ben-open-project={projectKeyOf(selected)} className="flex flex-col">
+              <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+                <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+                <ProjectFavicon project={selected} className="size-4" />
+                <span className="truncate text-sm font-semibold">{selected.title}</span>
+                <button
+                  type="button"
+                  aria-label={`New thread in ${selected.title}`}
+                  className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  onClick={() =>
+                    void handleNewThread(scopeProjectRef(selected.environmentId, selected.id))
+                  }
+                >
+                  <SquarePenIcon className="size-3.5" />
+                </button>
+              </div>
+              <SpecialRow
+                role="planner"
+                project={selected}
+                threads={threads}
+                activePath={location.pathname}
+              />
+              <SpecialRow
+                role="merge"
+                project={selected}
+                threads={threads}
+                activePath={location.pathname}
+              />
+              {(["needs-you", "working", "idle"] as const).map((id) => {
+                const list = sections.get(id) ?? [];
+                if (list.length === 0) return null;
+                return (
+                  <div key={id}>
+                    <SectionLabel count={list.length}>{SECTION_LABEL[id]}</SectionLabel>
+                    {list.slice(0, MAX_ROWS_PER_SECTION).map((thread) => (
+                      <ThreadRow
+                        key={thread.id}
+                        thread={thread}
+                        column={id}
+                        active={location.pathname.includes(thread.id)}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+              {finished.length > 0 ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowFinished((value) => !value)}
+                    className="flex w-full items-center gap-1 px-3 pt-2 pb-1 text-2xs font-medium tracking-wide text-muted-foreground uppercase hover:text-foreground"
+                  >
+                    {showFinished ? (
+                      <ChevronDownIcon className="size-3" />
+                    ) : (
+                      <ChevronRightIcon className="size-3" />
+                    )}
+                    Finished <span className="opacity-60">{finished.length}</span>
+                  </button>
+                  {showFinished
+                    ? finished
+                        .slice(0, MAX_ROWS_PER_SECTION)
+                        .map((thread) => (
+                          <ThreadRow
+                            key={thread.id}
+                            thread={thread}
+                            column={classifyBoardThread(thread) ?? "finished"}
+                            active={location.pathname.includes(thread.id)}
+                          />
+                        ))
+                    : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="mt-auto flex flex-col border-t border-border/60 pt-2">
+            {others.map((project) => {
+              const counts = countsByProject.get(projectKeyOf(project));
+              return (
+                <button
+                  key={projectKeyOf(project)}
+                  type="button"
+                  data-ben-project={projectKeyOf(project)}
+                  onClick={() => setSelectedKey(projectKeyOf(project))}
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                >
+                  <ChevronRightIcon className="size-3.5" />
+                  <ProjectFavicon project={project} className="size-4" />
+                  <span className="truncate">{project.title}</span>
+                  {counts && counts.needs > 0 ? (
+                    <span className="ml-auto rounded-full bg-warning/20 px-1.5 text-2xs text-warning">
+                      {counts.needs}
+                    </span>
+                  ) : counts && counts.working > 0 ? (
+                    <span className="ml-auto size-1.5 animate-pulse rounded-full bg-info" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </SidebarContent>
+      <SidebarChromeFooter />
+    </TooltipProvider>
+  );
+}

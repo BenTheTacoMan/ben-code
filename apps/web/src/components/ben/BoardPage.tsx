@@ -24,11 +24,11 @@ import {
 } from "./boardColumns";
 
 const COLUMN_ACCENT: Record<BoardColumnId, string> = {
-  "needs-you": "bg-amber-400",
-  working: "bg-indigo-400",
-  idle: "bg-zinc-500",
-  finished: "bg-emerald-400",
-  pushed: "bg-violet-400",
+  "needs-you": "bg-warning",
+  working: "bg-info",
+  idle: "bg-muted-foreground",
+  finished: "bg-success",
+  pushed: "bg-guest",
 };
 
 function relativeTime(iso: string, nowIso: string): string {
