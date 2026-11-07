@@ -3,13 +3,14 @@
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
   Columns3Icon,
   CompassIcon,
+  ListIcon,
   PackageCheckIcon,
   SquarePenIcon,
 } from "lucide-react";
@@ -128,6 +129,8 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
   );
   const threads = useVisibleThreadShells();
   const location = useLocation();
+  const router = useRouter();
+  const onBoard = location.pathname === "/board";
   const handleNewThread = useNewThreadHandler();
   const [selectedKey, setSelectedKey] = useLocalStorage("ben:selected-project", "", Schema.String);
   const [showFinished, setShowFinished] = useState(false);
@@ -162,18 +165,27 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
       <SidebarContent className="min-h-full">
         <div className="flex min-h-full flex-col gap-1 px-2 pb-2">
           <div className="flex items-center gap-1 px-1 pt-1">
-            <Link
-              to="/board"
-              search={selected ? { project: projectKeyOf(selected) } : {}}
-              data-ben-board-link
-              className={cn(
-                "flex flex-1 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent/60",
-                location.pathname === "/board" && "bg-accent",
-              )}
-            >
-              <Columns3Icon className="size-4" />
-              Board
-            </Link>
+            {onBoard ? (
+              <button
+                type="button"
+                data-ben-board-link
+                onClick={() => router.history.back()}
+                className="flex flex-1 items-center gap-2 rounded-md bg-accent px-2.5 py-1.5 text-left text-sm"
+              >
+                <ListIcon className="size-4" />
+                Back to threads
+              </button>
+            ) : (
+              <Link
+                to="/board"
+                search={selected ? { project: projectKeyOf(selected) } : {}}
+                data-ben-board-link
+                className="flex flex-1 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-accent/60"
+              >
+                <Columns3Icon className="size-4" />
+                Board
+              </Link>
+            )}
           </div>
 
           {selected ? (
