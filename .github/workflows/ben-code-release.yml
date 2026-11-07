@@ -91,7 +91,7 @@ jobs:
             node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64
           manifest=$(ls out/*-mac.yml | grep -v builder-debug | head -1)
           cp "$manifest" out/latest-mac.yml
-          cp "$manifest" out/ben-mac.yml
+          [ "$manifest" -ef out/ben-mac.yml ] || cp "$manifest" out/ben-mac.yml
           ls -la out
 
       - name: Publish release
