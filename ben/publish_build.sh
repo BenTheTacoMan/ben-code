@@ -15,7 +15,7 @@ if [ -f "$HOME/.config/vite-plus/env" ]; then
 fi
 
 signing="$HOME/Library/Keychains/ben-code.keychain-db"
-security unlock-keychain -p bencode "$signing"
+security unlock-keychain -p "$(cat "$HOME/.ben-code-build/signing/password")" "$signing"
 export BEN_CODE_SIGN_IDENTITY="Ben Code Local"
 export CSC_KEYCHAIN="$signing"
 

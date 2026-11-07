@@ -1,0 +1,111 @@
+name: Ben Code Release
+
+# Builds the signed macOS app and publishes it as a GitHub release. The installed app reads
+# https://github.com/BenTheTacoMan/ben-code/releases/latest/download/latest-mac.yml and updates itself.
+# Nightly it first merges upstream T3 Code into the ben-code branch (a merge, never a force push).
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+  push:
+    branches: [ben-code]
+
+concurrency:
+  group: ben-code-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ben-code
+          fetch-depth: 0
+
+      - name: Merge upstream
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "ben-code release"
+          git config user.email "actions@users.noreply.github.com"
+          git remote add upstream https://github.com/pingdotgg/t3code.git
+          git fetch --no-tags upstream main
+          if ! git merge --no-edit upstream/main; then
+            git merge --abort
+            echo "::error::Merging upstream/main conflicts. Resolve it locally on ben-code and push."
+            exit 1
+          fi
+          git push origin HEAD:ben-code
+
+      - name: Skip when this commit is already released
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse --short=10 HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if gh release view "build-$sha" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "build-$sha is already published."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/setup-ci-deps
+        if: steps.gate.outputs.skip != 'true'
+
+      - name: Import signing certificate
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          P12_BASE64: ${{ secrets.BEN_CODE_SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.BEN_CODE_SIGNING_P12_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/ben-code.keychain-db"
+          security create-keychain -p ci "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p ci "$keychain"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/id.p12"
+          security import "$RUNNER_TEMP/id.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/id.p12"
+          echo "CSC_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+      - name: Build
+        if: steps.gate.outputs.skip != 'true'
+        id: build
+        env:
+          BEN_CODE_SIGN_IDENTITY: Ben Code Local
+        run: |
+          base=$(node -p "require('./apps/desktop/package.json').version.split('-')[0]")
+          version="${base}-ben.$(date -u +%Y%m%d%H%M)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          rustup target add aarch64-apple-darwin
+          T3CODE_DESKTOP_VERSION="$version" T3CODE_DESKTOP_OUTPUT_DIR="$PWD/out" \
+            node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64
+          manifest=$(ls out/*-mac.yml | grep -v builder-debug | head -1)
+          cp "$manifest" out/latest-mac.yml
+          cp "$manifest" out/ben-mac.yml
+          ls -la out
+
+      - name: Publish release
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ steps.gate.outputs.sha }}" \
+            --target "$(git rev-parse HEAD)" \
+            --title "Ben Code ${{ steps.build.outputs.version }}" \
+            --notes "Built from $(git rev-parse --short HEAD) on $(date -u +%F)." \
+            --latest \
+            out/*.dmg out/*.dmg.blockmap out/*.zip out/*.zip.blockmap out/latest-mac.yml out/ben-mac.yml
+          # Keep the five newest releases.
+          gh release list --limit 100 --json tagName --jq '.[5:][].tagName' | while read -r tag; do
+            gh release delete "$tag" --cleanup-tag --yes
+          done

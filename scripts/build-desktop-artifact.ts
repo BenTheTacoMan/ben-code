@@ -2809,7 +2809,12 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   const updateChannel = resolveDesktopUpdateChannel(version);
   // Ben Code updates from its own local feed (ben/publish_build.sh), never the official one.
   buildConfig.publish = [
-    { provider: "generic", url: process.env.BEN_CODE_UPDATE_URL ?? "http://127.0.0.1:47831" },
+    {
+      provider: "generic",
+      url:
+        process.env.BEN_CODE_UPDATE_URL ??
+        "https://github.com/BenTheTacoMan/ben-code/releases/latest/download",
+    },
   ];
 
   if (platform === "mac") {
