@@ -32,19 +32,20 @@ quit the nightly app first. The schema level is the same as the nightly build to
 
 ## Packaged app
 
-`/Applications/Ben Code.app` updates itself like a normal Electron app (Settings shows "Update available", then Download and Restart).
-Its feed is `http://127.0.0.1:47831`, served by launchd job `com.ben.code-feed` from `~/.ben-code-build/feed`.
-Launchd job `com.ben.code-publish` runs `ben/publish_build.sh` at 04:00: it syncs upstream, builds, signs with the
-local certificate "Ben Code Local" (own keychain `~/Library/Keychains/ben-code.keychain-db`) and publishes to the feed.
-`ben/publish_build.sh` publishes on demand; `ben/update_app.sh` also installs over `/Applications` for a first install.
+`/Applications/Ben Code.app` updates itself like a normal app (Settings shows "Update available", then Download and Restart).
+It reads https://github.com/BenTheTacoMan/ben-code/releases/latest/download. The fork's workflow
+`.github/workflows/ben-code-release.yml` builds, signs and publishes a release on every push to `ben-code` and nightly at 08:00 UTC,
+after merging upstream T3 Code into `ben-code` (a merge commit, never a force push). A merge conflict fails the run; resolve it locally.
+Builds are signed with the local certificate "Ben Code Local", stored as the repository secrets
+`BEN_CODE_SIGNING_P12_BASE64` and `BEN_CODE_SIGNING_P12_PASSWORD`. The same certificate on every build is what lets macOS accept each update.
 The app has its own id, name and data (`~/.t3-ben`, `~/Library/Application Support/ben-code`) and runs next to the stock app.
-The same certificate on every build is what lets macOS accept each update. Rust comes from rustup (`~/.rustup`).
-Logs: `~/.ben-code-build/publish-nightly.log`, `feed.log`.
+`ben/publish_build.sh` and `ben/update_app.sh` build locally (needs Rust from rustup and the local keychain `ben-code.keychain-db`);
+you only need them to test a build before pushing.
 
 ## Updating
 
-`ben/sync_upstream.sh` fetches upstream, rebases `ben-code`, reinstalls, typechecks and runs the board tests.
-On a conflict it aborts and leaves the branch as it was. Nothing pushes.
+`ben/sync_upstream.sh` merges `origin/ben-code` and upstream into the local branch, reinstalls, typechecks and runs the board tests.
+On a conflict it aborts and leaves the branch as it was. Nothing pushes; `git push` on `ben-code` publishes a new release.
 
 ## Known gaps
 
