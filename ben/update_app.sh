@@ -30,8 +30,11 @@ fi
 was_running=0
 if pgrep -xq "Ben Code"; then
   was_running=1
-  osascript -e 'tell application "Ben Code" to quit' || true
-  for _ in $(seq 1 20); do pgrep -xq "Ben Code" || break; sleep 1; done
+  osascript -e 'tell application "Ben Code" to quit' 2>/dev/null || true
+  for _ in $(seq 1 10); do pgrep -xq "Ben Code" || break; sleep 1; done
+  # Quit by Apple event can time out; SIGTERM is the same as Cmd-Q for Electron.
+  pkill -TERM -f "/Applications/Ben Code.app/Contents/MacOS/Ben Code" || true
+  for _ in $(seq 1 10); do pgrep -xq "Ben Code" || break; sleep 1; done
 fi
 
 rm -rf "/Applications/Ben Code.app"
@@ -39,4 +42,8 @@ ditto "$app" "/Applications/Ben Code.app"
 # The build is unsigned; an ad-hoc signature makes the bundle valid so macOS opens it without a prompt.
 codesign --force --deep -s - "/Applications/Ben Code.app"
 echo "Installed /Applications/Ben Code.app from $(git rev-parse --short HEAD)"
-if [ "$was_running" = 1 ]; then open "/Applications/Ben Code.app"; fi
+if pgrep -xq "Ben Code"; then
+  echo "Ben Code is still open (it may be holding quit for a running thread). Quit and reopen it to use the new build."
+elif [ "$was_running" = 1 ]; then
+  open "/Applications/Ben Code.app"
+fi

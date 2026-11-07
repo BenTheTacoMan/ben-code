@@ -20,6 +20,8 @@ quit the nightly app first. The schema level is the same as the nightly build to
 - **Project accordion sidebar**: the open project shows its Planner, Merge manager and threads grouped by state.
   Other projects are single rows at the bottom, with an amber count when something needs you.
   `localStorage.setItem("ben:sidebar", "false")` brings the upstream sidebar back.
+- **Finished page** (`/finished`): all finished and pushed threads by project; the sidebar only shows a link and a count.
+  Hover a project row and click the X to archive it (reversible from the command palette).
 - **Planner** (read-only): runs on provider instance `claudeAgent_planner`, whose Claude home
   (`~/.claude-planner`, built by `ben/sync_planner_home.py`) denies Edit, Write and destructive shell commands.
   It plans, then starts threads with `t3_thread_launch`. First click creates it; it is remembered per project.
