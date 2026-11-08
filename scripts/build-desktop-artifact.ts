@@ -3861,7 +3861,9 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
       : undefined;
   const stagePackageJson: StagePackageJson = {
-    name: "t3code",
+    // Ben Code: Chromium names its keychain item "<name> Safe Storage". Stock T3 Code owns "t3code Safe Storage",
+    // so sharing it made macOS ask for the login password on every launch.
+    name: "ben-code",
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,
