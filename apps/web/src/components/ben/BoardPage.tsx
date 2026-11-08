@@ -130,7 +130,7 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
           })}
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-5 gap-3 overflow-x-auto px-4 pb-4">
+      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-4">
         {BOARD_COLUMNS.map((column) => {
           const list = columns.get(column.id) ?? [];
           return (
@@ -138,7 +138,7 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
               key={column.id}
               data-board-column={column.id}
               className={cn(
-                "flex min-h-0 min-w-52 flex-col rounded-lg bg-muted/40 p-2 transition-colors",
+                "flex min-h-0 w-64 shrink-0 flex-col rounded-lg bg-muted/40 p-2 transition-colors",
                 overColumn === column.id && "bg-muted",
               )}
               onDragOver={(event) => {
@@ -180,9 +180,9 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
                           ),
                         })
                       }
-                      className="cursor-pointer rounded-md border border-border bg-card p-2.5 text-xs shadow-xs hover:border-primary/40"
+                      className="min-w-0 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border bg-card p-2.5 text-xs shadow-xs hover:border-primary/40"
                     >
-                      <div className="line-clamp-2 font-medium">{thread.title}</div>
+                      <div className="line-clamp-2 break-words font-medium">{thread.title}</div>
                       <div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
                         {project && !props.projectKey ? (
                           <span className="flex min-w-0 items-center gap-1">

@@ -17,6 +17,8 @@ import {
   type SpecialThreadRole,
 } from "./specialThreads";
 
+const pendingCreations = new Map<string, ReturnType<typeof newThreadId>>();
+
 export function useOpenSpecialThread() {
   const navigate = useNavigate();
   const createThread = useOrchestrationCommand(threadEnvironment.create, { reportFailure: false });
@@ -27,6 +29,16 @@ export function useOpenSpecialThread() {
   return async (project: EnvironmentProject, role: SpecialThreadRole) => {
     const definition = SPECIAL_THREADS[role];
     const projectKey = `${project.environmentId}:${project.id}`;
+    // A second click while the first thread is still being created must not start another one.
+    const creationKey = `${role}:${projectKey}`;
+    const pendingId = pendingCreations.get(creationKey);
+    if (pendingId) {
+      await navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(scopeThreadRef(project.environmentId, pendingId)),
+      });
+      return;
+    }
     const existing = findSpecialThread(readThreadShells(), projectKey, role);
     if (existing) {
       rememberSpecialThread(projectKey, role, existing.id);
@@ -38,6 +50,9 @@ export function useOpenSpecialThread() {
     }
 
     const threadId = newThreadId();
+    pendingCreations.set(creationKey, threadId);
+    // Remember before the server round trip so the sidebar and the next click find this thread at once.
+    rememberSpecialThread(projectKey, role, threadId);
     const createdAt = new Date().toISOString();
     const modelSelection: ModelSelection = {
       instanceId: ProviderInstanceId.make(definition.instanceId),
@@ -77,6 +92,7 @@ export function useOpenSpecialThread() {
               createdAt,
             },
           });
+    pendingCreations.delete(creationKey);
     if (started._tag === "Failure") {
       toastManager.add(
         stackedThreadToast({
