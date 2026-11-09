@@ -4,10 +4,12 @@ import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environ
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { useNavigate } from "@tanstack/react-router";
 import { GitBranchIcon } from "lucide-react";
+import * as Schema from "effect/Schema";
 import { useRef, useState, type DragEvent } from "react";
 
 import { isElectron } from "../../env";
 import { useNowMinute } from "../../hooks/useNowMinute";
+import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useThreadActions } from "../../hooks/useThreadActions";
 import { cn } from "../../lib/utils";
 import { useVisibleThreadShells } from "../../state/entities";
@@ -54,9 +56,13 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
   const [overColumn, setOverColumn] = useState<BoardColumnId | null>(null);
   const dragKeyRef = useRef<string | null>(null);
 
-  const projectByKey = new Map(
-    projects.map((project) => [`${project.environmentId}:${project.id}`, project]),
-  );
+  // One board per project: the project in the URL, else the one picked in the sidebar, else the first.
+  const [selectedKey] = useLocalStorage("ben:selected-project", "", Schema.String);
+  const boardProject =
+    projects.find((project) => `${project.environmentId}:${project.id}` === props.projectKey) ??
+    projects.find((project) => `${project.environmentId}:${project.id}` === selectedKey) ??
+    projects[0];
+  const boardKey = boardProject ? `${boardProject.environmentId}:${boardProject.id}` : undefined;
 
   const columns = new Map<BoardColumnId, EnvironmentThreadShell[]>(
     BOARD_COLUMNS.map((column) => [column.id, []]),
@@ -64,9 +70,7 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
   const columnByKey = new Map<string, BoardColumnId>();
   const threadByKey = new Map<string, EnvironmentThreadShell>();
   for (const thread of threads) {
-    if (props.projectKey && `${thread.environmentId}:${thread.projectId}` !== props.projectKey) {
-      continue;
-    }
+    if (boardKey && `${thread.environmentId}:${thread.projectId}` !== boardKey) continue;
     const column = classifyBoardThread(thread);
     if (column === null) continue;
     columns.get(column)!.push(thread);
@@ -95,40 +99,9 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
       {isElectron ? <WorkspacePageHeader electron /> : null}
-      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-        <h1 className="text-sm font-semibold">Board</h1>
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          <button
-            type="button"
-            className={cn(
-              "rounded-full px-2.5 py-1",
-              !props.projectKey
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground",
-            )}
-            onClick={() => void navigate({ to: "/board", search: {} })}
-          >
-            All projects
-          </button>
-          {projects.map((project) => {
-            const key = `${project.environmentId}:${project.id}`;
-            return (
-              <button
-                key={key}
-                type="button"
-                className={cn(
-                  "rounded-full px-2.5 py-1",
-                  props.projectKey === key
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
-                )}
-                onClick={() => void navigate({ to: "/board", search: { project: key } })}
-              >
-                {project.title}
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        {boardProject ? <ProjectFavicon project={boardProject} className="size-4" /> : null}
+        <h1 className="text-sm font-semibold">{boardProject?.title ?? "Board"}</h1>
       </div>
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-4">
         {BOARD_COLUMNS.map((column) => {
@@ -157,7 +130,6 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
               </header>
               <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                 {list.map((thread) => {
-                  const project = projectByKey.get(`${thread.environmentId}:${thread.projectId}`);
                   const pr = thread.pullRequests[0];
                   return (
                     <article
@@ -184,12 +156,6 @@ export function BoardPage(props: { readonly projectKey: string | undefined }) {
                     >
                       <div className="line-clamp-2 break-words font-medium">{thread.title}</div>
                       <div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
-                        {project && !props.projectKey ? (
-                          <span className="flex min-w-0 items-center gap-1">
-                            <ProjectFavicon project={project} className="size-3" />
-                            <span className="truncate">{project.title}</span>
-                          </span>
-                        ) : null}
                         {thread.branch ? (
                           <span className="flex min-w-0 items-center gap-0.5">
                             <GitBranchIcon className="size-3 shrink-0" />

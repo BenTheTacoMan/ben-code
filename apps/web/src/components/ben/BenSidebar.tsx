@@ -146,6 +146,13 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
       input: { projectId: project.id, archived: true },
     });
 
+  const navigate = useNavigate();
+  // Clicking a project selects it and opens that project's own board.
+  const openProjectBoard = (project: EnvironmentProject) => {
+    setSelectedKey(projectKeyOf(project));
+    void navigate({ to: "/board", search: { project: projectKeyOf(project) } });
+  };
+
   const selected = projects.find((project) => projectKeyOf(project) === selectedKey) ?? projects[0];
   const others = projects.filter((project) => project !== selected);
 
@@ -204,9 +211,16 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
           {selected ? (
             <div data-ben-open-project={projectKeyOf(selected)} className="flex flex-col">
               <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-                <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-                <ProjectFavicon project={selected} className="size-4" />
-                <span className="truncate text-sm font-semibold">{selected.title}</span>
+                <button
+                  type="button"
+                  data-ben-open-board
+                  onClick={() => openProjectBoard(selected)}
+                  className="flex min-w-0 items-center gap-2 rounded text-left hover:text-foreground"
+                >
+                  <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+                  <ProjectFavicon project={selected} className="size-4" />
+                  <span className="truncate text-sm font-semibold">{selected.title}</span>
+                </button>
                 <button
                   type="button"
                   aria-label={`New thread in ${selected.title}`}
@@ -258,7 +272,7 @@ export default function BenSidebar(_props: { routeReveal?: unknown }) {
                   key={projectKeyOf(project)}
                   type="button"
                   data-ben-project={projectKeyOf(project)}
-                  onClick={() => setSelectedKey(projectKeyOf(project))}
+                  onClick={() => openProjectBoard(project)}
                   className="group flex items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                 >
                   <ChevronRightIcon className="size-3.5" />
